@@ -22,6 +22,11 @@ export function buildApp() {
       root: webRoot,
       prefix: "/_web/"
     });
+    app.register(fastifyStatic, {
+      root: webRoot,
+      prefix: "/assets/",
+      decorateReply: false
+    });
   }
 
   app.get("/health", async () => ({ ok: true, product: "RentalOps + Marketplace" }));
