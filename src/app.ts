@@ -23,7 +23,7 @@ export function buildApp() {
       prefix: "/_web/"
     });
     app.register(fastifyStatic, {
-      root: webRoot,
+      root: path.join(webRoot, "assets"),
       prefix: "/assets/",
       decorateReply: false
     });
