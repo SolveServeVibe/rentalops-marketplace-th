@@ -15,7 +15,7 @@ export function buildApp() {
   app.register(cors, { origin: true });
   app.addHook("preHandler", attachAuth);
 
-  const webRoot = path.join(process.cwd(), "dist", "web");
+  const webRoot = path.resolve(__dirname, "..", "web");
   const hasWeb = fs.existsSync(webRoot);
   if (hasWeb) {
     app.register(fastifyStatic, {
