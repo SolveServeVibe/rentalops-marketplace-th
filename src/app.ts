@@ -12,6 +12,101 @@ export function buildApp() {
   app.register(cors, { origin: true });
   app.addHook("preHandler", attachAuth);
 
+  app.get("/", async (_req, res) => {
+    res.type("text/html; charset=utf-8").send(`<!doctype html>
+<html lang="th">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tarent RentalOps</title>
+  <style>
+    :root {
+      --bg1: #f8fbff;
+      --bg2: #edf6f1;
+      --ink: #10231a;
+      --brand: #0f766e;
+      --card: #ffffff;
+      --line: #d7e4dd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Noto Sans Thai", "Sarabun", system-ui, sans-serif;
+      color: var(--ink);
+      background: radial-gradient(circle at 20% 10%, var(--bg2), var(--bg1));
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .wrap {
+      width: min(980px, 100%);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: 0 12px 40px rgba(16, 35, 26, 0.08);
+      overflow: hidden;
+    }
+    .hero {
+      padding: 28px;
+      background: linear-gradient(135deg, #e8f6f2, #f6faf9);
+      border-bottom: 1px solid var(--line);
+    }
+    h1 { margin: 0 0 8px; font-size: 28px; }
+    p { margin: 0; line-height: 1.5; }
+    .grid {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 12px;
+    }
+    .card {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      background: #fff;
+    }
+    .card b { display: block; margin-bottom: 6px; }
+    a { color: var(--brand); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .foot {
+      border-top: 1px solid var(--line);
+      padding: 14px 20px;
+      font-size: 14px;
+      color: #466257;
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="hero">
+      <h1>Tarent RentalOps</h1>
+      <p>ระบบจัดการทรัพย์ปล่อยเช่า + Marketplace สำหรับค้นหาห้องเช่า (Thai-first MVP)</p>
+    </section>
+    <section class="grid">
+      <article class="card">
+        <b>System Health</b>
+        <a href="/health">GET /health</a>
+      </article>
+      <article class="card">
+        <b>Marketplace Search</b>
+        <a href="/public/search_listings">GET /public/search_listings</a>
+      </article>
+      <article class="card">
+        <b>Back-office API</b>
+        <span>Base path: <code>/api/*</code></span>
+      </article>
+      <article class="card">
+        <b>Status</b>
+        <span>App is live and ready for API + UI expansion.</span>
+      </article>
+    </section>
+    <footer class="foot">Powered by SolveServe • Tarent</footer>
+  </main>
+</body>
+</html>`);
+  });
+
   app.get("/health", async () => ({ ok: true, product: "RentalOps + Marketplace" }));
 
   app.post("/api/properties", async (req, res) => {
