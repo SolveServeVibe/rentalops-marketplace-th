@@ -167,14 +167,15 @@ export function buildApp() {
     res.send(lead);
   });
 
-  if (hasWeb) {
-    const sendSpa = (_req: any, res: any) => res.sendFile("index.html", webRoot);
-    app.get("/", sendSpa);
-    app.get("/app", sendSpa);
-    app.get("/app/*", sendSpa);
-    app.get("/marketplace", sendSpa);
-    app.get("/marketplace/*", sendSpa);
-  }
+  const sendSpa = (_req: any, res: any) => {
+    if (hasWeb) return res.sendFile("index.html", webRoot);
+    return res.type("text/html; charset=utf-8").send(`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tarent RentalOps</title></head><body style="font-family:system-ui,sans-serif;padding:24px"><h2>Tarent RentalOps</h2><p>กำลังเตรียมหน้าเว็บ กรุณารีเฟรชอีกครั้ง</p><p><a href="/health">/health</a></p></body></html>`);
+  };
+  app.get("/", sendSpa);
+  app.get("/app", sendSpa);
+  app.get("/app/*", sendSpa);
+  app.get("/marketplace", sendSpa);
+  app.get("/marketplace/*", sendSpa);
 
   return app;
 }
