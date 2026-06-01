@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  platform_admin
+  landlord_owner
+  landlord_staff
+}
+
+enum ListingSearchStatus {
+  draft
+  pending_review
+  open_for_search
+  paused
+  closed
+}
+
+enum OccupancyStatus {
+  vacant
+  occupied
+  maintenance
+}
+
+enum InvoiceStatus {
+  pending
+  partial
+  paid
+  overdue
+}
+
+enum PaymentRecordStatus {
+  submitted
+  approved
+  rejected
+}
+
+model Workspace {
+  id          String               @id @default(cuid())
+  name        String
+  createdAt   DateTime             @default(now())
+  users       UserWorkspaceRole[]
+  properties  Property[]
+  tenants     Tenant[]
+  leases      Lease[]
+  invoices    Invoice[]
+  payments    PaymentRecord[]
+  inquiries   LeadInquiry[]
+}
+
+model User {
+  id           String              @id @default(cuid())
+  email        String              @unique
+  passwordHash String
+  fullName     String
+  createdAt    DateTime            @default(now())
+  workspaceMap UserWorkspaceRole[]
+  interactions CrmInteraction[]
+}
+
+model UserWorkspaceRole {
+  id          String    @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        Role
+  user        User      @relation(fields: [userId], references: [id])
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([userId, workspaceId])
+}
+
+model Property {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  address     String
+  district    String
+  province    String
+  createdAt   DateTime  @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  units       Unit[]
+}
+
+model Unit {
+  id              String          @id @default(cuid())
+  workspaceId     String
+  propertyId      String
+  roomCode        String
+  roomType        String
+  floor           Int
+  monthlyRentTHB  Decimal         @db.Decimal(10, 2)
+  occupancyStatus OccupancyStatus @default(vacant)
+  facilities      String[]
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id])
+  property        Property        @relation(fields: [propertyId], references: [id])
+  media           UnitMedia[]
+  listing         Listing?
+
+  @@unique([propertyId, roomCode])
+}
+
+model UnitMedia {
+  id     String @id @default(cuid())
+  unitId String
+  url    String
+  altTH  String
+  unit   Unit   @relation(fields: [unitId], references: [id])
+}
+
+model Listing {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  unitId         String              @unique
+  titleTH        String
+  descriptionTH  String
+  searchStatus   ListingSearchStatus @default(draft)
+  publishedAt    DateTime?
+  createdAt      DateTime            @default(now())
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id])
+  unit           Unit                @relation(fields: [unitId], references: [id])
+  leadInquiries  LeadInquiry[]
+}
+
+model Tenant {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  fullName     String
+  thaiId       String?
+  primaryPhone String
+  lineId       String?
+  createdAt    DateTime         @default(now())
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id])
+  contacts     TenantContact[]
+  leases       Lease[]
+  crmNotes     CrmInteraction[]
+}
+
+model TenantContact {
+  id        String   @id @default(cuid())
+  tenantId   String
+  type      String
+  value     String
+  note      String?
+  createdAt DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model CrmInteraction {
+  id          String   @id @default(cuid())
+  workspaceId String
+  tenantId    String
+  userId      String
+  channel     String
+  noteTH      String
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model Lease {
+  id             String    @id @default(cuid())
+  workspaceId    String
+  unitId         String
+  tenantId       String
+  startDate      DateTime
+  endDate        DateTime
+  monthlyRentTHB Decimal   @db.Decimal(10, 2)
+  penaltyPerDay  Decimal   @db.Decimal(10, 2)
+  workspace      Workspace @relation(fields: [workspaceId], references: [id])
+  unit           Unit      @relation(fields: [unitId], references: [id])
+  tenant         Tenant    @relation(fields: [tenantId], references: [id])
+  schedules      RentSchedule[]
+  invoices       Invoice[]
+}
+
+model RentSchedule {
+  id          String   @id @default(cuid())
+  workspaceId String
+  leaseId     String
+  dueDate     DateTime
+  amountTHB   Decimal  @db.Decimal(10, 2)
+  generated   Boolean  @default(false)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  lease       Lease    @relation(fields: [leaseId], references: [id])
+}
+
+model Invoice {
+  id          String       @id @default(cuid())
+  workspaceId String
+  leaseId     String
+  dueDate     DateTime
+  amountTHB   Decimal      @db.Decimal(10, 2)
+  paidTHB     Decimal      @default(0) @db.Decimal(10, 2)
+  status      InvoiceStatus @default(pending)
+  createdAt   DateTime     @default(now())
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  lease       Lease        @relation(fields: [leaseId], references: [id])
+  payments    PaymentRecord[]
+}
+
+model PaymentRecord {
+  id             String              @id @default(cuid())
+  workspaceId    String
+  invoiceId      String
+  submittedBy    String?
+  transferRef    String
+  amountTHB      Decimal             @db.Decimal(10, 2)
+  paymentDate    DateTime
+  evidenceUrl    String?
+  status         PaymentRecordStatus @default(submitted)
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  rejectionNote  String?
+  createdAt      DateTime            @default(now())
+  workspace      Workspace           @relation(fields: [workspaceId], references: [id])
+  invoice        Invoice             @relation(fields: [invoiceId], references: [id])
+  logs           ReconciliationLog[]
+}
+
+model ReconciliationLog {
+  id          String   @id @default(cuid())
+  workspaceId String
+  paymentId   String
+  action      String
+  actorUserId String
+  noteTH      String
+  createdAt   DateTime @default(now())
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+  payment     PaymentRecord @relation(fields: [paymentId], references: [id])
+}
+
+model LeadInquiry {
+  id            String   @id @default(cuid())
+  workspaceId   String
+  listingId     String
+  renterName    String
+  phone         String
+  lineId        String?
+  message       String?
+  source        String   @default("marketplace")
+  createdAt     DateTime @default(now())
+  workspace     Workspace @relation(fields: [workspaceId], references: [id])
+  listing       Listing  @relation(fields: [listingId], references: [id])
+}
