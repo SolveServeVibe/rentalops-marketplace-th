@@ -7,7 +7,9 @@
     "dev": "tsx src/server.ts",
     "test": "vitest run",
     "prisma_generate": "prisma generate",
-    "prisma_migrate": "prisma migrate dev"
+    "prisma_migrate": "prisma migrate dev",
+    "build": "tsc",
+    "start": "node dist/server.js"
   },
   "keywords": [],
   "author": "",
