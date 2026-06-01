@@ -1,113 +1,55 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
+import fastifyStatic from "@fastify/static";
 import { z } from "zod";
+import path from "node:path";
+import fs from "node:fs";
 import { attachAuth, ensureRole } from "./core/auth";
 import { newId, store, Property, Unit, Listing, Tenant, Lease, LeadInquiry } from "./core/store";
 import { assertWorkspace } from "./routes/helpers";
 import { canBePublic, searchListings } from "./services/listings";
-import { generateInvoiceFromLease, reconcilePayment, submitPayment } from "./services/billing";
+import { generateInvoiceFromLease, reconcilePayment, submitPayment, refreshInvoiceStatus } from "./services/billing";
 
 export function buildApp() {
   const app = Fastify({ logger: true });
   app.register(cors, { origin: true });
   app.addHook("preHandler", attachAuth);
 
-  app.get("/", async (_req, res) => {
-    res.type("text/html; charset=utf-8").send(`<!doctype html>
-<html lang="th">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tarent RentalOps</title>
-  <style>
-    :root {
-      --bg1: #f8fbff;
-      --bg2: #edf6f1;
-      --ink: #10231a;
-      --brand: #0f766e;
-      --card: #ffffff;
-      --line: #d7e4dd;
-    }
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Noto Sans Thai", "Sarabun", system-ui, sans-serif;
-      color: var(--ink);
-      background: radial-gradient(circle at 20% 10%, var(--bg2), var(--bg1));
-      min-height: 100vh;
-      display: grid;
-      place-items: center;
-      padding: 24px;
-    }
-    .wrap {
-      width: min(980px, 100%);
-      background: var(--card);
-      border: 1px solid var(--line);
-      border-radius: 20px;
-      box-shadow: 0 12px 40px rgba(16, 35, 26, 0.08);
-      overflow: hidden;
-    }
-    .hero {
-      padding: 28px;
-      background: linear-gradient(135deg, #e8f6f2, #f6faf9);
-      border-bottom: 1px solid var(--line);
-    }
-    h1 { margin: 0 0 8px; font-size: 28px; }
-    p { margin: 0; line-height: 1.5; }
-    .grid {
-      padding: 20px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-      gap: 12px;
-    }
-    .card {
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 14px;
-      background: #fff;
-    }
-    .card b { display: block; margin-bottom: 6px; }
-    a { color: var(--brand); text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    .foot {
-      border-top: 1px solid var(--line);
-      padding: 14px 20px;
-      font-size: 14px;
-      color: #466257;
-    }
-  </style>
-</head>
-<body>
-  <main class="wrap">
-    <section class="hero">
-      <h1>Tarent RentalOps</h1>
-      <p>ระบบจัดการทรัพย์ปล่อยเช่า + Marketplace สำหรับค้นหาห้องเช่า (Thai-first MVP)</p>
-    </section>
-    <section class="grid">
-      <article class="card">
-        <b>System Health</b>
-        <a href="/health">GET /health</a>
-      </article>
-      <article class="card">
-        <b>Marketplace Search</b>
-        <a href="/public/search_listings">GET /public/search_listings</a>
-      </article>
-      <article class="card">
-        <b>Back-office API</b>
-        <span>Base path: <code>/api/*</code></span>
-      </article>
-      <article class="card">
-        <b>Status</b>
-        <span>App is live and ready for API + UI expansion.</span>
-      </article>
-    </section>
-    <footer class="foot">Powered by SolveServe • Tarent</footer>
-  </main>
-</body>
-</html>`);
-  });
+  const webRoot = path.join(process.cwd(), "dist", "web");
+  const hasWeb = fs.existsSync(webRoot);
+  if (hasWeb) {
+    app.register(fastifyStatic, {
+      root: webRoot,
+      prefix: "/_web/"
+    });
+  }
 
   app.get("/health", async () => ({ ok: true, product: "RentalOps + Marketplace" }));
+
+  app.get("/api/dashboard", async (req) => {
+    const ws = req.auth.workspaceId;
+    const units = [...store.units.values()].filter((x) => x.workspaceId === ws);
+    const listings = [...store.listings.values()].filter((x) => x.workspaceId === ws);
+    const invoices = [...store.invoices.values()].filter((x) => x.workspaceId === ws).map((x) => refreshInvoiceStatus(x));
+    return {
+      units: units.length,
+      openListings: listings.filter((x) => x.searchStatus === "open_for_search").length,
+      dueInvoices: invoices.filter((x) => x.status === "pending" || x.status === "partial").length,
+      overdueInvoices: invoices.filter((x) => x.status === "overdue").length
+    };
+  });
+
+  app.get("/api/properties", async (req) => [...store.properties.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/units", async (req) => [...store.units.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/listings", async (req) => [...store.listings.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/tenants", async (req) => [...store.tenants.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/leases", async (req) => [...store.leases.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/invoices", async (req) => [...store.invoices.values()].filter((x) => x.workspaceId === req.auth.workspaceId).map((x) => refreshInvoiceStatus(x)));
+  app.get("/api/payments", async (req) => [...store.payments.values()].filter((x) => x.workspaceId === req.auth.workspaceId));
+  app.get("/api/crm-notes", async (req) => {
+    const q = z.object({ tenantId: z.string().optional() }).parse(req.query);
+    return [...store.crmNotes.values()].filter((x) => x.workspaceId === req.auth.workspaceId && (!q.tenantId || x.tenantId === q.tenantId));
+  });
 
   app.post("/api/properties", async (req, res) => {
     const input = z.object({ name: z.string(), district: z.string(), province: z.string(), address: z.string() }).parse(req.body);
@@ -224,6 +166,15 @@ export function buildApp() {
     store.inquiries.set(lead.id, lead);
     res.send(lead);
   });
+
+  if (hasWeb) {
+    const sendSpa = (_req: any, res: any) => res.sendFile("index.html", webRoot);
+    app.get("/", sendSpa);
+    app.get("/app", sendSpa);
+    app.get("/app/*", sendSpa);
+    app.get("/marketplace", sendSpa);
+    app.get("/marketplace/*", sendSpa);
+  }
 
   return app;
 }
